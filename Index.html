@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BossX Zone</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            background-color: #0000ff; /* Biru seperti screenshot */
+            border: 2px solid #ffd700; /* Emas untuk border */
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 20px;
+        }
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: red;
+            font-size: 40px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="score">Score: 0</div>
+    <div id="game-over">Game Over! Score: 0<br>Refresh untuk main lagi.</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const segmentSize = 20;
+        const fps = 15; // Lebih lambat untuk feel seperti snake klasik
+
+        let worm = {
+            segments: [[canvas.width / 2, canvas.height / 2]],
+            direction: [segmentSize, 0], // Mulai ke kanan
+            nextDirection: [segmentSize, 0],
+            length: 1,
+            speed: 1,
+            boost: false
+        };
+
+        let food = {
+            x: Math.floor(Math.random() * (canvas.width / segmentSize)) * segmentSize,
+            y: Math.floor(Math.random() * (canvas.height / segmentSize)) * segmentSize
+        };
+
+        let score = 0;
+        let gameOver = false;
+
+        // Fungsi gambar worm
+        function drawWorm() {
+            ctx.fillStyle = 'green';
+            worm.segments.forEach(segment => {
+                ctx.fillRect(segment[0], segment[1], segmentSize, segmentSize);
+            });
+        }
+
+        // Fungsi gambar makanan
+        function drawFood() {
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(food.x + segmentSize / 2, food.y + segmentSize / 2, segmentSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Update posisi worm
+        function updateWorm() {
+            worm.direction = worm.nextDirection.slice(); // Hindari balik arah langsung
+            let speedMultiplier = worm.boost ? 2 : 1;
+            let headX = worm.segments[0][0] + worm.direction[0] * worm.speed * speedMultiplier;
+            let headY = worm.segments[0][1] + worm.direction[1] * worm.speed * speedMultiplier;
+
+            // Wrap around? Tidak, seperti game asli: collision dengan batas
+            if (headX < 0 || headX >= canvas.width || headY < 0 || headY >= canvas.height) {
+                gameOver = true;
+                return;
+            }
+
+            worm.segments.unshift([headX, headY]);
+            if (worm.segments.length > worm.length) {
+                worm.segments.pop();
+            }
+
+            // Cek collision dengan diri sendiri
+            for (let i = 1; i < worm.segments.length; i++) {
+                if (worm.segments[0][0] === worm.segments[i][0] && worm.segments[0][1] === worm.segments[i][1]) {
+                    gameOver = true;
+                    return;
+                }
+            }
+        }
+
+        // Cek makan makanan
+        function checkEat() {
+            if (Math.abs(worm.segments[0][0] - food.x) < segmentSize && Math.abs(worm.segments[0][1] - food.y) < segmentSize) {
+                worm.length += 1;
+                score += 1;
+                document.getElementById('score').textContent = `Score: ${score}`;
+                food.x = Math.floor(Math.random() * (canvas.width / segmentSize)) * segmentSize;
+                food.y = Math.floor(Math.random() * (canvas.height / segmentSize)) * segmentSize;
+            }
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (gameOver) {
+                document.getElementById('game-over').textContent = `Game Over! Score: ${score}\nRefresh untuk main lagi.`;
+                document.getElementById('game-over').style.display = 'block';
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            updateWorm();
+            checkEat();
+            drawWorm();
+            drawFood();
+
+            setTimeout(gameLoop, 1000 / fps);
+        }
+
+        // Kontrol keyboard
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' && worm.direction[0] !== segmentSize) worm.nextDirection = [-segmentSize, 0];
+            if (e.key === 'ArrowRight' && worm.direction[0] !== -segmentSize) worm.nextDirection = [segmentSize, 0];
+            if (e.key === 'ArrowUp' && worm.direction[1] !== segmentSize) worm.nextDirection = [0, -segmentSize];
+            if (e.key === 'ArrowDown' && worm.direction[1] !== -segmentSize) worm.nextDirection = [0, segmentSize];
+            if (e.key === ' ') worm.boost = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === ' ') worm.boost = false;
+        });
+
+        // Kontrol touch (untuk mobile)
+        let touchStartX = 0, touchStartY = 0;
+        canvas.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            worm.boost = true; // Tap untuk boost sementara
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            let deltaX = e.touches[0].clientX - touchStartX;
+            let deltaY = e.touches[0].clientY - touchStartY;
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                if (deltaX > 0 && worm.direction[0] !== -segmentSize) worm.nextDirection = [segmentSize, 0];
+                else if (deltaX < 0 && worm.direction[0] !== segmentSize) worm.nextDirection = [-segmentSize, 0];
+            } else {
+                if (deltaY > 0 && worm.direction[1] !== -segmentSize) worm.nextDirection = [0, segmentSize];
+                else if (deltaY < 0 && worm.direction[1] !== segmentSize) worm.nextDirection = [0, -segmentSize];
+            }
+        });
+
+        canvas.addEventListener('touchend', () => {
+            worm.boost = false;
+        });
+
+        // Mulai game
+        gameLoop();
+    </script>
+</body>
+</html>
